@@ -549,8 +549,17 @@ install_xray() {
         return 0
     fi
     echo "正在安装 xray（官方安装脚本）..."
-    if ! bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install -u root; then
-        echo "xray 安装失败，请检查网络后重试。"
+    local installer=""
+    installer="$(curl -fsSL --max-time 60 https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" || {
+        echo "安装脚本下载失败：连不上 GitHub，请检查网络后重试。"
+        return 1
+    }
+    if [ -z "$installer" ]; then
+        echo "安装脚本下载失败：下载到空文件，请检查网络后重试。"
+        return 1
+    fi
+    if ! bash -c "$installer" @ install -u root; then
+        echo "xray 安装失败：上面是官方安装脚本的报错，请把上面几行发给我再定位。"
         return 1
     fi
     echo "xray 已安装。"
