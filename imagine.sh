@@ -19,7 +19,6 @@
 #           2. 查看节点
 #           3. 更换端口
 #           4. 卸载 reality
-#        （以后加新协议时在这里另起一行，如 3. xhttp）
 #
 # 说明：
 # - 安装步骤需要 root 权限，请用 sudo bash imagine.sh 运行。
@@ -54,18 +53,58 @@ random_password() {
     echo
 }
 
-# 读端口：留空用默认值，非数字或越界就重问
+# 检查端口是否已被占用：参数为 tcp/udp 和端口号；被占用返回 0
+# 自己节点的进程（hy2 的 hysteria、reality 的 xray）占着不算占用，
+# 重装或换回原端口时会重启它
+port_in_use() {
+    local proto="$1" port="$2"
+    local lines line self
+    if command -v ss >/dev/null 2>&1; then
+        if [ "$proto" = "udp" ]; then
+            lines="$(ss -ulnp 2>/dev/null | grep ":${port} " || true)"
+        else
+            lines="$(ss -tlnp 2>/dev/null | grep ":${port} " || true)"
+        fi
+        [ -n "$lines" ] || return 1
+        self="xray"
+        [ "$proto" = "udp" ] && self="hysteria"
+        while IFS= read -r line; do
+            case "$line" in
+                *"\"${self}\""*) continue ;;
+            esac
+            return 0
+        done <<< "$lines"
+        return 1
+    fi
+    # 没有 ss 时从 /proc/net 查（端口是十六进制）
+    local hexport
+    hexport="$(printf '%04X' "$port")"
+    if [ "$proto" = "udp" ]; then
+        grep -q ":${hexport} " /proc/net/udp /proc/net/udp6 2>/dev/null
+    else
+        grep -q ":${hexport} " /proc/net/tcp /proc/net/tcp6 2>/dev/null
+    fi
+}
+
+# 读端口：留空用默认值，非数字或越界就重问；被占用也重问，直到成功
+# 参数：默认端口 协议（tcp/udp，默认 tcp）
 read_port() {
     local default_port="$1"
+    local proto="${2:-tcp}"
     local port=""
     while true; do
         read -rp "请输入端口（留空默认 ${default_port}）: " port
         port="${port:-$default_port}"
-        if [[ "$port" =~ ^[0-9]+$ ]] && [ "$port" -ge 1 ] && [ "$port" -le 65535 ]; then
-            echo "$port"
-            return
+        if ! [[ "$port" =~ ^[0-9]+$ ]] || [ "$port" -lt 1 ] || [ "$port" -gt 65535 ]; then
+            echo "端口无效，请输入 1-65535 的数字。" >&2
+            continue
         fi
-        echo "端口无效，请输入 1-65535 的数字。" >&2
+        if port_in_use "$proto" "$port"; then
+            echo "端口 ${port} 已被占用，请换一个端口。" >&2
+            continue
+        fi
+        echo "$port"
+        return
     done
 }
 
@@ -228,7 +267,7 @@ install_hy2_no_domain() {
     check_root || return
     echo "---------- 搭建 hy2：没有域名（自签证书） ----------"
     local port password ip
-    port="$(read_port 443)"
+    port="$(read_port 443 udp)"
     password="$(read_password)"
     install_hysteria_binary || return
     ip="$(detect_public_ip)"
@@ -316,7 +355,7 @@ install_hy2_with_domain() {
         echo "域名不能为空。"
         return
     fi
-    port="$(read_port 443)"
+    port="$(read_port 443 udp)"
     password="$(read_password)"
     install_hysteria_binary || return
     # 找 acme.sh，没有就装一个
@@ -482,7 +521,7 @@ change_port() {
     local current_port new_port
     current_port="$(grep '^listen:' "${CONFIG_DIR}/config.yaml" | sed 's/^listen: *://;s/ *$//')"
     echo "当前端口：${current_port}"
-    new_port="$(read_port "$current_port")"
+    new_port="$(read_port "$current_port" udp)"
     if [ "$new_port" = "$current_port" ]; then
         echo "端口未变，无需操作。"
         return
@@ -799,7 +838,7 @@ install_reality() {
     echo "说明：用 Xray 官方安装脚本安装，配置按防偷流量模板生成；"
     echo "不需要域名和证书，伪装域名默认 speed.cloudflare.com。"
     local port sni uuid shortid int_port host
-    port="$(read_port 443)"
+    port="$(read_port 443 tcp)"
     read -rp "请输入伪装域名（留空默认 speed.cloudflare.com）: " sni
     sni="${sni:-speed.cloudflare.com}"
     # Reality 需要服务器能直连伪装域名拿到它的证书，连不上节点就通不了；
@@ -904,7 +943,7 @@ change_reality_port() {
     local current_port new_port int_port
     current_port="$(grep -m1 '"port"' "${REALITY_CONFIG_DIR}/config.json" | sed 's/[^0-9]//g')"
     echo "当前端口：${current_port}"
-    new_port="$(read_port "$current_port")"
+    new_port="$(read_port "$current_port" tcp)"
     if [ "$new_port" = "$current_port" ]; then
         echo "端口未变，无需操作。"
         return
@@ -1037,7 +1076,7 @@ menu_reality() {
     done
 }
 
-# 搭建节点菜单：按协议分行，以后加新协议（xhttp 等）时在这里另起一行
+# 搭建节点菜单：按协议分行
 menu_build() {
     while true; do
         echo
