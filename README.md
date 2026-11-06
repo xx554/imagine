@@ -2,13 +2,15 @@
 
 ## 菜单安装脚本 imagine.sh（新）
 
-带菜单的节点搭建脚本（hy2 / vless+reality），面向 Linux，用 root 运行：
+带菜单的节点搭建脚本（hy2 / vless+reality），面向 Linux，用 root 运行。一键下载并运行：
 
 ```bash
-bash imagine.sh
+curl -fsSL https://raw.githubusercontent.com/xx554/imagine/main/imagine.sh -o imagine.sh && sudo bash imagine.sh
 ```
 
 首次用 root 运行后会自动安装快捷键，之后在任何目录输入 `x` 或 `X`（不区分大小写）即可打开菜单。
+
+注意：不要用 `bash <(curl ...)` 这种管道方式运行，sudo 下会直接报错，不加 sudo 也装不上快捷键。如果提示找不到 curl，先装一个：`apt install -y curl`（Debian/Ubuntu）或 `yum install -y curl`（CentOS/RHEL）。
 
 菜单结构：
 
