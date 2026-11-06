@@ -558,7 +558,9 @@ install_xray() {
         echo "安装脚本下载失败：下载到空文件，请检查网络后重试。"
         return 1
     fi
-    if ! bash -c "$installer" @ install -u root; then
+    # 注意：新版官方安装脚本没有 -u 选项，服务默认以 xray 用户运行；
+    # 教程里写的 -u root 是旧版的写法，现在传了会报 unknown option
+    if ! bash -c "$installer" @ install; then
         echo "xray 安装失败：上面是官方安装脚本的报错，请把上面几行发给我再定位。"
         return 1
     fi
