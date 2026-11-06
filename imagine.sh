@@ -34,6 +34,8 @@ set -u  # 引用未定义变量就报错（不加 -e，避免菜单里某个命�
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
 CONFIG_DIR="${CONFIG_DIR:-/etc/hysteria}"
 SERVICE_DIR="${SERVICE_DIR:-/etc/systemd/system}"
+# 脚本自身的下载地址（管道运行时用来下载一份再装快捷键）
+IMAGINE_URL="${IMAGINE_URL:-https://raw.githubusercontent.com/xx554/imagine/main/imagine.sh}"
 # reality（Xray）用的路径：官方安装脚本的固定位置
 REALITY_CONFIG_DIR="${REALITY_CONFIG_DIR:-/usr/local/etc/xray}"
 XRAY_BIN="${XRAY_BIN:-xray}"
@@ -1041,26 +1043,36 @@ install_shortcut() {
         return 0
     fi
     local self_path target link created
-    # 通过管道/进程替换运行（如 bash <(curl ...)）时，脚本不在真实文件里，
-    # 复制会失败或只拷到一半，快捷键会指向不存在的文件，所以直接跳过
+    target="/usr/local/bin/imagine.sh"
     case "${BASH_SOURCE[0]}" in
         /dev/fd/*)
-            echo "提示：当前是通过管道运行，未安装快捷键；"
-            echo "请先下载成文件再运行：curl -fsSL https://raw.githubusercontent.com/xx554/imagine/main/imagine.sh -o imagine.sh && sudo bash imagine.sh"
-            return 0
+            # 通过管道/进程替换运行（如 bash <(curl ...)）时，脚本不在真实文件里，
+            # 从仓库下载一份再安装快捷键
+            echo "正在从仓库下载脚本以安装快捷键..."
+            if command -v curl >/dev/null 2>&1; then
+                curl -fsSL "$IMAGINE_URL" -o "$target" || { echo "下载失败，未安装快捷键。"; return 0; }
+            elif command -v wget >/dev/null 2>&1; then
+                wget -q "$IMAGINE_URL" -O "$target" || { echo "下载失败，未安装快捷键。"; return 0; }
+            else
+                echo "提示：本机没有 curl 或 wget，无法安装快捷键；"
+                echo "请先装 curl 再运行：apt install -y curl"
+                return 0
+            fi
+            chmod +x "$target"
+            ;;
+        *)
+            self_path="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "")"
+            if [ -z "$self_path" ]; then
+                return 0
+            fi
+            if [ "$self_path" != "$target" ]; then
+                cp "$self_path" "$target" && chmod +x "$target"
+            fi
             ;;
     esac
-    self_path="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "")"
-    if [ -z "$self_path" ]; then
-        return 0
-    fi
-    target="/usr/local/bin/imagine.sh"
-    if [ "$self_path" != "$target" ]; then
-        cp "$self_path" "$target" && chmod +x "$target"
-    fi
-    # 复制失败就不要建快捷键，避免留下指向不存在文件的坏链接
+    # 复制/下载失败就不要建快捷键，避免留下指向不存在文件的坏链接
     if [ ! -s "$target" ]; then
-        echo "提示：快捷键安装失败（无法复制脚本文件）。"
+        echo "提示：快捷键安装失败（无法获取脚本文件）。"
         return 0
     fi
     created=0
