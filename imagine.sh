@@ -578,11 +578,13 @@ gen_reality_uuid() {
 }
 
 # 生成 x25519 密钥对：设置 REALITY_PRIVKEY / REALITY_PUBKEY
+# 新版 xray 输出是 "PrivateKey: ..." / "Password (PublicKey): ..."，
+# 旧版是 "Private key: ..." / "Public key: ..."，两种都兼容
 gen_reality_keypair() {
     local output=""
     output="$("$XRAY_BIN" x25519 2>/dev/null)"
-    REALITY_PRIVKEY="$(echo "$output" | grep -i 'private key' | awk -F': ' '{print $2}' | tr -d ' \r')"
-    REALITY_PUBKEY="$(echo "$output" | grep -i 'public key' | awk -F': ' '{print $2}' | tr -d ' \r')"
+    REALITY_PRIVKEY="$(echo "$output" | grep -i 'private' | head -n 1 | sed 's/^[^:]*:[[:space:]]*//;s/[[:space:]]//g')"
+    REALITY_PUBKEY="$(echo "$output" | grep -i 'public' | head -n 1 | sed 's/^[^:]*:[[:space:]]*//;s/[[:space:]]//g')"
 }
 
 # 生成 reality 服务端配置：参数依次为 对外端口 内网端口 UUID 私钥 shortId 伪装域名
@@ -763,7 +765,7 @@ load_reality_node_info() {
         REALITY_HOST="$(hostname -I 2>/dev/null | awk '{print $1}')"
     fi
     if [ -n "$REALITY_PRIVKEY" ] && command -v "$XRAY_BIN" >/dev/null 2>&1; then
-        REALITY_PUBKEY="$("$XRAY_BIN" x25519 -i "$REALITY_PRIVKEY" 2>/dev/null | grep -i 'public key' | awk -F': ' '{print $2}' | tr -d ' \r')"
+        REALITY_PUBKEY="$("$XRAY_BIN" x25519 -i "$REALITY_PRIVKEY" 2>/dev/null | grep -i 'public' | head -n 1 | sed 's/^[^:]*:[[:space:]]*//;s/[[:space:]]//g')"
     fi
     return 0
 }
