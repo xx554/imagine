@@ -802,6 +802,14 @@ install_reality() {
     port="$(read_port 443)"
     read -rp "请输入伪装域名（留空默认 speed.cloudflare.com）: " sni
     sni="${sni:-speed.cloudflare.com}"
+    # Reality 需要服务器能直连伪装域名拿到它的证书，连不上节点就通不了；
+    # 只是提醒，不阻塞安装
+    if command -v curl >/dev/null 2>&1; then
+        if ! curl -sI --max-time 10 "https://${sni}" >/dev/null 2>&1; then
+            echo "提醒：本机连不上 https://${sni}，reality 需要服务器能直连伪装域名拿证书，"
+            echo "连不上可能导致节点不通，请检查服务器网络或换个伪装域名。"
+        fi
+    fi
     install_xray || return
     uuid="$(gen_reality_uuid)"
     if [ -z "$uuid" ]; then
