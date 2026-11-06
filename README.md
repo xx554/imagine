@@ -29,7 +29,6 @@ bash <(curl -fsSL https://raw.githubusercontent.com/xx554/imagine/main/imagine.s
         2. 查看节点（运行状态 + 可复制到 v2rayN 的节点信息）
         3. 更换端口
         4. 卸载 reality
-     （以后加新协议时在搭建节点下另起一行，如 3. xhttp）
 ```
 
 - 没有域名：自动生成自签证书，客户端需开启“跳过证书验证”。
