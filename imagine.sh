@@ -1041,6 +1041,15 @@ install_shortcut() {
         return 0
     fi
     local self_path target link created
+    # 通过管道/进程替换运行（如 bash <(curl ...)）时，脚本不在真实文件里，
+    # 复制会失败或只拷到一半，快捷键会指向不存在的文件，所以直接跳过
+    case "${BASH_SOURCE[0]}" in
+        /dev/fd/*)
+            echo "提示：当前是通过管道运行，未安装快捷键；"
+            echo "请先下载成文件再运行：curl -fsSL https://raw.githubusercontent.com/xx554/imagine/main/imagine.sh -o imagine.sh && sudo bash imagine.sh"
+            return 0
+            ;;
+    esac
     self_path="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "")"
     if [ -z "$self_path" ]; then
         return 0
@@ -1048,6 +1057,11 @@ install_shortcut() {
     target="/usr/local/bin/imagine.sh"
     if [ "$self_path" != "$target" ]; then
         cp "$self_path" "$target" && chmod +x "$target"
+    fi
+    # 复制失败就不要建快捷键，避免留下指向不存在文件的坏链接
+    if [ ! -s "$target" ]; then
+        echo "提示：快捷键安装失败（无法复制脚本文件）。"
+        return 0
     fi
     created=0
     for link in /usr/local/bin/x /usr/local/bin/X; do
